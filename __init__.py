@@ -1,14 +1,14 @@
 #Author: NSA Cloud
 bl_info = {
-	"name": "RE-Mesh-Editor-BlendShape",
-	"author": "NSA Cloud, Forked by Ridog8, BlendShape by Dimcirui",
-	"version": (0, 70, 5),
+	"name": "RE-Mesh-Editor-BlendShape (RE4R Face Integration)",
+	"author": "NSA Cloud, Forked by Ridog8, BlendShape by Dimcirui, RE4R integration by funnyguyz (2026-10-13)",
+	"version": (0, 70, 6),
 	"blender": (4, 3, 2),
 	"location": "File > Import-Export",
 	"description": "Import and export RE Engine Mesh files natively into Blender. No Noesis required.",
 	"warning": "",
-	"wiki_url": "https://github.com/Dimcirui/RE-Mesh-Editor-BlendShape",
-	"tracker_url": "https://github.com/Dimcirui/RE-Mesh-Editor-BlendShape/issues",
+	"wiki_url": "https://github.com/Funnyguysmz/RE-Mesh-Editor-BlendShape",
+	"tracker_url": "https://github.com/Funnyguysmz/RE-Mesh-Editor-BlendShape/issues",
 	"category": "Import-Export"}
 
 # Capabilities other addons (Modding Toolkit) detect instead of matching bl_info names.
@@ -16,7 +16,7 @@ bl_info = {
 # wilds_blendshape_export: exportfile takes shapeKeyExportMode NO / MODE1 / KEEPNORMALS,
 # KEEPNORMALS output verified in game.
 # re4_blendshape_export: RE4 (.221108797) exportfile exports shape keys for any
-# shapeKeyExportMode except NO (RE4 has a single layout).
+# shapeKeyExportMode except NO. RE4-specific switches select mouth9 and toon normals.
 # oniwots_blendshape_export: Onimusha WotS (.260209350) exportfile takes the Wilds
 # modes (NO / MODE1 / KEEPNORMALS).
 # mhrise_blendshape_export: MH Rise (.2109148288) exportfile takes NO / MODE1 /
@@ -26,7 +26,9 @@ bl_info = {
 # Version 2: shapeKeyExportMode has no MODE0 (marker 0) any more.
 REME_FEATURES = {
 	"wilds_blendshape_export": 2,
-	"re4_blendshape_export": 1,
+	"re4_blendshape_export": 2,
+	"re4_native_mouth_taps": 1,
+	"re4_toon_normals_export": 1,
 	"oniwots_blendshape_export": 2,
 	"mhrise_blendshape_export": 2,
 	"re9_blendshape_export": 2,
@@ -1081,6 +1083,14 @@ class ExportREMesh(Operator, ExportHelper):
 		],
 		default = "KEEPNORMALS"
 	)
+	re4NativeMouthTaps : BoolProperty(
+		name = "Add RE4 Mouth Receivers (9)",
+		description = "RE4 Leon replacement head: prepend nine zero-position native corrective receivers for the mouth9 ShapeKey System mapping",
+		default = False)
+	re4KeepToonNormals : BoolProperty(
+		name = "Keep RE4 Toon Normals (No Fins)",
+		description = "RE4: preserve the exported custom normal direction on every shape key; write packed-position and authored-normal rows without normal recalculation. Prepare cylindrical normals on the face first",
+		default = False)
 	rotate90 : BoolProperty(
 	   name = "Convert Z Up To Y Up",
 	   description = "Rotates objects 90 degrees for export. Leaving this option enabled is recommended",
@@ -1227,7 +1237,11 @@ class ExportREMesh(Operator, ExportHelper):
 					split.label(text="Export Shapekeys?")
 					split.prop(self, "shapeKeyExportMode", text="")
 					if self.filename_ext == ".221108797":
-						layout.label(text="RE4: one layout, any choice except No exports", icon="INFO")
+						layout.label(text="RE4: use the switches below for receivers and toon normals", icon="INFO")
+						column = layout.column()
+						column.enabled = self.shapeKeyExportMode != "NO"
+						column.prop(self, "re4NativeMouthTaps")
+						column.prop(self, "re4KeepToonNormals")
 
 		layout.prop(self, "rotate90")
 		layout.prop(self, "useBlenderMaterialName")
@@ -1253,7 +1267,7 @@ class ExportREMesh(Operator, ExportHelper):
 			exportBlendShapes = shapeKeyExportSelection != "NO"
 			blendShapeExportMode = -1 if shapeKeyExportSelection == "KEEPNORMALS" else 1
 		elif meshVersion == 221108797:
-			# RE4 has a single blendshape layout; the Wilds modes do not apply.
+			# RE4-specific switches below select its layout; generic modes only enable shapes.
 			exportBlendShapes = shapeKeyExportSelection != "NO"
 			blendShapeExportMode = 0
 		else:
@@ -1278,6 +1292,12 @@ class ExportREMesh(Operator, ExportHelper):
 			"normalizeWeights": self.normalizeWeights,
 			"preserveMaterialTable": self.preserveMaterialTable,
 		}
+		if meshVersion == 221108797 and exportBlendShapes:
+			options["re4KeepToonNormals"] = self.re4KeepToonNormals
+			if self.re4NativeMouthTaps:
+				from .modules.mesh.re4_blendshape import RE4_NATIVE_MOUTH_TAPS
+				options["re4NativeTaps"] = list(RE4_NATIVE_MOUTH_TAPS)
+
 		editorVersion = ".".join(str(part) for part in bl_info["version"])
 		print(f"\n{textColors.BOLD}RE-Mesh-Editor-BlendShape V{editorVersion}{textColors.ENDC}")
 		print(f"Blender Version {bpy.app.version[0]}.{bpy.app.version[1]}.{bpy.app.version[2]}")
@@ -1306,6 +1326,8 @@ class ExportREMesh(Operator, ExportHelper):
 				bpy.data.collections[self.targetCollection]["BatchExport_normalizeWeights"] = self.normalizeWeights
 				bpy.data.collections[self.targetCollection]["BatchExport_autoSolveRepeatedUVs"] = self.autoSolveRepeatedUVs
 				bpy.data.collections[self.targetCollection]["BatchExport_shapeKeyExportMode"] = self.shapeKeyExportMode
+				bpy.data.collections[self.targetCollection]["BatchExport_re4NativeMouthTaps"] = self.re4NativeMouthTaps
+				bpy.data.collections[self.targetCollection]["BatchExport_re4KeepToonNormals"] = self.re4KeepToonNormals
 				bpy.data.collections[self.targetCollection]["BatchExport_rotate90"] = self.rotate90
 				bpy.data.collections[self.targetCollection]["BatchExport_exportBlendShapes"] = self.exportBlendShapes
 				bpy.data.collections[self.targetCollection]["BatchExport_useBlenderMaterialName"] = self.useBlenderMaterialName

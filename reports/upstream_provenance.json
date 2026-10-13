@@ -1,0 +1,21 @@
+{
+  "upstream": "Dimcirui/RE-Mesh-Editor-BlendShape",
+  "baseline_commit": "5c0ac95bcda08a36fe149523c986b89a77725ec6",
+  "original_zip_entries": 174,
+  "all_zip_entries_match_after_line_ending_normalization": true,
+  "changed_original_files": [
+    "__init__.py",
+    "modules/mesh/blender_re_mesh.py",
+    "modules/mesh/file_re_mesh.py",
+    "modules/mesh/re4_blendshape.py",
+    "modules/mesh/re_mesh_operators.py",
+    "modules/mesh/re_mesh_parse.py",
+    "modules/mesh/re_mesh_propertyGroups.py"
+  ],
+  "date": "2026-10-13",
+  "unchanged_original_files_same_path": 166,
+  "original_readme_preserved_byte_identical_as": "README_UPSTREAM.md",
+  "public_documentation_changes": [
+    "README.md"
+  ]
+}

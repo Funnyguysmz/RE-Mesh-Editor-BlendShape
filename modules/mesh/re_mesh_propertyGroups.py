@@ -164,6 +164,14 @@ class ExporterNodePropertyGroup(bpy.types.PropertyGroup):
 	   name = "Preserve Original Material Table",
 	   description = "Keep the original material slot order of the imported mesh, including unused slots. New materials are appended at the end with a warning. Requires a mesh imported with this version of the addon",
 	   default = False)
+	re4NativeMouthTaps : BoolProperty(
+		name = "Add RE4 Mouth Receivers (9)",
+		description = "RE4 Leon replacement head: prepend nine zero-position native corrective receivers for the mouth9 ShapeKey System mapping",
+		default = False)
+	re4KeepToonNormals : BoolProperty(
+		name = "Keep RE4 Toon Normals (No Fins)",
+		description = "RE4: preserve the exported custom normal direction on every shape key; write packed-position and authored-normal rows without normal recalculation. Prepare cylindrical normals on the face first",
+		default = False)
 	# Mirrors ExportREMesh.shapeKeyExportMode in __init__.py; keep the two in sync.
 	shapeKeyExportMode : EnumProperty(
 		name = "Export Shapekeys?",

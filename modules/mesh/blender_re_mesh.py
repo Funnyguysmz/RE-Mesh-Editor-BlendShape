@@ -1598,6 +1598,12 @@ Use the "Limit Total and Normalize All Weights" button the RE Mesh tab.
 		_game_supports_blend_shapes(gameName)
 		and bool(options.get("exportBlendShapes", False))
 	)
+	if gameName == "RE4" and blendShapeExportEnabled:
+		from .re4_blendshape import parse_native_tap_names
+		parsedMesh._re4NativeTapNames = parse_native_tap_names(
+			options.get("re4NativeTaps", targetCollection.get("RE4_native_taps"))
+		)
+		parsedMesh._re4KeepToonNormals = bool(options.get("re4KeepToonNormals", False))
 	if gameName in BLEND_SHAPE_MODE_GAMES:
 		from .mhwilds_blendshape import set_export_mode
 		selectedBlendShapeMode = int(options.get("blendShapeExportMode", -1))

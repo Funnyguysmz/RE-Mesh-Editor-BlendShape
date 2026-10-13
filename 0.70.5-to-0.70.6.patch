@@ -1,0 +1,407 @@
+--- a/__init__.py
++++ b/__init__.py
+@@ -1,14 +1,14 @@
+ #Author: NSA Cloud
+ bl_info = {
+-	"name": "RE-Mesh-Editor-BlendShape",
+-	"author": "NSA Cloud, Forked by Ridog8, BlendShape by Dimcirui",
+-	"version": (0, 70, 5),
++	"name": "RE-Mesh-Editor-BlendShape (RE4R Face Integration)",
++	"author": "NSA Cloud, Forked by Ridog8, BlendShape by Dimcirui, RE4R integration by funnyguyz (2026-10-13)",
++	"version": (0, 70, 6),
+ 	"blender": (4, 3, 2),
+ 	"location": "File > Import-Export",
+ 	"description": "Import and export RE Engine Mesh files natively into Blender. No Noesis required.",
+ 	"warning": "",
+-	"wiki_url": "https://github.com/Dimcirui/RE-Mesh-Editor-BlendShape",
+-	"tracker_url": "https://github.com/Dimcirui/RE-Mesh-Editor-BlendShape/issues",
++	"wiki_url": "https://github.com/Funnyguysmz/RE-Mesh-Editor-BlendShape",
++	"tracker_url": "https://github.com/Funnyguysmz/RE-Mesh-Editor-BlendShape/issues",
+ 	"category": "Import-Export"}
+ 
+ # Capabilities other addons (Modding Toolkit) detect instead of matching bl_info names.
+@@ -16,7 +16,7 @@
+ # wilds_blendshape_export: exportfile takes shapeKeyExportMode NO / MODE1 / KEEPNORMALS,
+ # KEEPNORMALS output verified in game.
+ # re4_blendshape_export: RE4 (.221108797) exportfile exports shape keys for any
+-# shapeKeyExportMode except NO (RE4 has a single layout).
++# shapeKeyExportMode except NO. RE4-specific switches select mouth9 and toon normals.
+ # oniwots_blendshape_export: Onimusha WotS (.260209350) exportfile takes the Wilds
+ # modes (NO / MODE1 / KEEPNORMALS).
+ # mhrise_blendshape_export: MH Rise (.2109148288) exportfile takes NO / MODE1 /
+@@ -26,7 +26,9 @@
+ # Version 2: shapeKeyExportMode has no MODE0 (marker 0) any more.
+ REME_FEATURES = {
+ 	"wilds_blendshape_export": 2,
+-	"re4_blendshape_export": 1,
++	"re4_blendshape_export": 2,
++	"re4_native_mouth_taps": 1,
++	"re4_toon_normals_export": 1,
+ 	"oniwots_blendshape_export": 2,
+ 	"mhrise_blendshape_export": 2,
+ 	"re9_blendshape_export": 2,
+@@ -1081,6 +1083,14 @@
+ 		],
+ 		default = "KEEPNORMALS"
+ 	)
++	re4NativeMouthTaps : BoolProperty(
++		name = "Add RE4 Mouth Receivers (9)",
++		description = "RE4 Leon replacement head: prepend nine zero-position native corrective receivers for the mouth9 ShapeKey System mapping",
++		default = False)
++	re4KeepToonNormals : BoolProperty(
++		name = "Keep RE4 Toon Normals (No Fins)",
++		description = "RE4: preserve the exported custom normal direction on every shape key; write packed-position and authored-normal rows without normal recalculation. Prepare cylindrical normals on the face first",
++		default = False)
+ 	rotate90 : BoolProperty(
+ 	   name = "Convert Z Up To Y Up",
+ 	   description = "Rotates objects 90 degrees for export. Leaving this option enabled is recommended",
+@@ -1227,7 +1237,11 @@
+ 					split.label(text="Export Shapekeys?")
+ 					split.prop(self, "shapeKeyExportMode", text="")
+ 					if self.filename_ext == ".221108797":
+-						layout.label(text="RE4: one layout, any choice except No exports", icon="INFO")
++						layout.label(text="RE4: use the switches below for receivers and toon normals", icon="INFO")
++						column = layout.column()
++						column.enabled = self.shapeKeyExportMode != "NO"
++						column.prop(self, "re4NativeMouthTaps")
++						column.prop(self, "re4KeepToonNormals")
+ 
+ 		layout.prop(self, "rotate90")
+ 		layout.prop(self, "useBlenderMaterialName")
+@@ -1253,7 +1267,7 @@
+ 			exportBlendShapes = shapeKeyExportSelection != "NO"
+ 			blendShapeExportMode = -1 if shapeKeyExportSelection == "KEEPNORMALS" else 1
+ 		elif meshVersion == 221108797:
+-			# RE4 has a single blendshape layout; the Wilds modes do not apply.
++			# RE4-specific switches below select its layout; generic modes only enable shapes.
+ 			exportBlendShapes = shapeKeyExportSelection != "NO"
+ 			blendShapeExportMode = 0
+ 		else:
+@@ -1278,6 +1292,12 @@
+ 			"normalizeWeights": self.normalizeWeights,
+ 			"preserveMaterialTable": self.preserveMaterialTable,
+ 		}
++		if meshVersion == 221108797 and exportBlendShapes:
++			options["re4KeepToonNormals"] = self.re4KeepToonNormals
++			if self.re4NativeMouthTaps:
++				from .modules.mesh.re4_blendshape import RE4_NATIVE_MOUTH_TAPS
++				options["re4NativeTaps"] = list(RE4_NATIVE_MOUTH_TAPS)
++
+ 		editorVersion = ".".join(str(part) for part in bl_info["version"])
+ 		print(f"\n{textColors.BOLD}RE-Mesh-Editor-BlendShape V{editorVersion}{textColors.ENDC}")
+ 		print(f"Blender Version {bpy.app.version[0]}.{bpy.app.version[1]}.{bpy.app.version[2]}")
+@@ -1306,6 +1326,8 @@
+ 				bpy.data.collections[self.targetCollection]["BatchExport_normalizeWeights"] = self.normalizeWeights
+ 				bpy.data.collections[self.targetCollection]["BatchExport_autoSolveRepeatedUVs"] = self.autoSolveRepeatedUVs
+ 				bpy.data.collections[self.targetCollection]["BatchExport_shapeKeyExportMode"] = self.shapeKeyExportMode
++				bpy.data.collections[self.targetCollection]["BatchExport_re4NativeMouthTaps"] = self.re4NativeMouthTaps
++				bpy.data.collections[self.targetCollection]["BatchExport_re4KeepToonNormals"] = self.re4KeepToonNormals
+ 				bpy.data.collections[self.targetCollection]["BatchExport_rotate90"] = self.rotate90
+ 				bpy.data.collections[self.targetCollection]["BatchExport_exportBlendShapes"] = self.exportBlendShapes
+ 				bpy.data.collections[self.targetCollection]["BatchExport_useBlenderMaterialName"] = self.useBlenderMaterialName
+--- a/modules/mesh/blender_re_mesh.py
++++ b/modules/mesh/blender_re_mesh.py
+@@ -1598,6 +1598,12 @@
+ 		_game_supports_blend_shapes(gameName)
+ 		and bool(options.get("exportBlendShapes", False))
+ 	)
++	if gameName == "RE4" and blendShapeExportEnabled:
++		from .re4_blendshape import parse_native_tap_names
++		parsedMesh._re4NativeTapNames = parse_native_tap_names(
++			options.get("re4NativeTaps", targetCollection.get("RE4_native_taps"))
++		)
++		parsedMesh._re4KeepToonNormals = bool(options.get("re4KeepToonNormals", False))
+ 	if gameName in BLEND_SHAPE_MODE_GAMES:
+ 		from .mhwilds_blendshape import set_export_mode
+ 		selectedBlendShapeMode = int(options.get("blendShapeExportMode", -1))
+--- a/modules/mesh/file_re_mesh.py
++++ b/modules/mesh/file_re_mesh.py
+@@ -2476,6 +2476,7 @@
+ 		if blendShapePlan is not None:
+ 			from .mhwilds_blendshape import relocate_blend_shape_header
+ 			from .re4_blendshape import reserve_re4_normal_recalc
++			reMesh._re4KeepToonNormals = bool(blendShapePlan.get("keepToonNormals", False))
+ 			currentOffset = reserve_re4_normal_recalc(reMesh, currentOffset)
+ 			reMesh.fileHeader.blendShapesOffset = currentOffset
+ 			reMesh.blendShapeHeader = blendShapePlan["header"]
+--- a/modules/mesh/re4_blendshape.py
++++ b/modules/mesh/re4_blendshape.py
+@@ -23,6 +23,12 @@
+ """
+ 
+ import struct
++import json
++
++# RE4R Face Integration 0.70.6, funnyguyz (2026-10-13).
++# Additional mode observed on native RE4 chd000_00 and tested on Xiaoyu:
++# unknFlag=0, no recalc section, packed delta + authored int8 normal rows.
++# This fork preserves the static exported normal field on every key.
+ 
+ import numpy as np
+ 
+@@ -36,10 +42,38 @@
+ NORMAL_RECALC_HEADER_BYTES = 48
+ 
+ 
++RE4_NATIVE_MOUTH_TAPS = ('Face__geo__p000_cbs.crct_jaw_openExtreme', 'Face__geo__p000_cbs.crct_mouth_purse_L_U', 'Face__geo__p000_cbs.crct_mouth_purse_L_D', 'Face__geo__p000_cbs.crct_mouth_purse_R_U', 'Face__geo__p000_cbs.crct_mouth_purse_R_D', 'Face__geo__p000_cbs.crct_mouth_funnel_L_U', 'Face__geo__p000_cbs.crct_mouth_funnel_L_D', 'Face__geo__p000_cbs.crct_mouth_funnel_R_U', 'Face__geo__p000_cbs.crct_mouth_funnel_R_D')
++
++
++def parse_native_tap_names(value):
++	"""Explicit per-export receiver names, supplied by the head collection only."""
++	if value is None or value == "":
++		return []
++	if isinstance(value, str):
++		value = json.loads(value)
++	if not isinstance(value, (list, tuple)):
++		raise ValueError("RE4_native_taps must be a JSON list of full native channel names")
++	result = []
++	for name in value:
++		if not isinstance(name, str) or not name.startswith("Face__geo__p000_cbs.crct_") or len(name) <= len("Face__geo__p000_cbs.crct_") or any(c.isspace() for c in name):
++			raise ValueError("Invalid full RE4 native tap name: " + repr(name))
++		if name not in result:
++			result.append(name)
++	return result
++
++
+ def _pack_rows(deltas):
+ 	deltas = np.asarray(deltas, dtype=np.float32).reshape((-1, 3))
+ 	rows = np.zeros((len(deltas), 4), dtype="<f2")
+ 	rows[:, :3] = deltas
++	return rows.tobytes()
++
++
++def _pack_toon_rows(deltas, aabb):
++	words = np.frombuffer(wilds._pack_delta_rows(deltas, aabb), dtype="<u4")
++	rows = np.zeros((len(words), 2), dtype="<u4")
++	rows[:, 0] = words
++	# Fill second words from the final exported geometry in finalize_re4_export.
+ 	return rows.tobytes()
+ 
+ 
+@@ -86,7 +120,7 @@
+ 	return wilds._mask_runs(marked)
+ 
+ 
+-def _build_body(lod, parsed_to_mesh_info, channel_order=None):
++def _build_body(lod, parsed_to_mesh_info, channel_order=None, native_taps=()):
+ 	"""One blend body. LOD0 passes no order; higher LODs repeat LOD0's channels.
+ 
+ 	Returns (body, [(target, [(deltas, runs)])], names) or None when the LOD
+@@ -103,12 +137,21 @@
+ 	active = []
+ 	inactive = []
+ 	names = []
++	taps_added = False
+ 	for submeshes in groups:
+ 		if channel_order is None:
+ 			lo, valid, ranges, channels = _group_deltas(
+ 				submeshes, wilds._shape_names(submeshes)
+ 			)
++			# Receivers must be zero-delta. A real deformation under the same name is ambiguous.
++			for name, _deltas, moving in channels:
++				if name in native_taps and moving.any():
++					raise ValueError("Native receiver must have zero deltas: " + name)
+ 			channels = [channel for channel in channels if channel[2].any()]
++			# Attach once to the first active group; zeros share the custom channels' existing runs.
++			if channels and native_taps and not taps_added:
++				channels = [(name, np.zeros((len(valid), 3), dtype=np.float32), np.zeros(len(valid), dtype=bool)) for name in native_taps] + channels
++				taps_added = True
+ 		else:
+ 			lo, valid, ranges, channels = _group_deltas(submeshes, channel_order)
+ 			if not any(channel[2].any() for channel in channels):
+@@ -156,10 +199,15 @@
+ 	lods = wilds._list_or_empty(getattr(parsed_mesh, "mainMeshLODList", None))
+ 	if not lods:
+ 		return None
++	native_taps = parse_native_tap_names(getattr(parsed_mesh, "_re4NativeTapNames", None))
+ 	wilds._drop_empty_shapes(lods)
+-	built = _build_body(lods[0], parsed_to_mesh_info)
++	built = _build_body(lods[0], parsed_to_mesh_info, native_taps=native_taps)
+ 	if built is None:
++		if native_taps:
++			raise ValueError("Native taps require at least one moving custom shape key")
+ 		return None
++	if native_taps and not all(name in built[2] for name in native_taps):
++		raise ValueError("Requested native taps were not included in LOD0")
+ 	bodies = [built]
+ 	base_names = built[2]
+ 	for lod_index, lod in enumerate(lods[1:], start=1):
+@@ -198,7 +246,11 @@
+ 	remap_names = list(base_names)
+ 	payload = bytearray()
+ 	row = 0
++	keep_toon = bool(getattr(parsed_mesh, "_re4KeepToonNormals", False))
++	normal_runs = []
+ 	for body_index, (body, active, names) in enumerate(bodies):
++		if keep_toon:
++			body.unknFlag = 0
+ 		if body_index == 0:
+ 			body.blendS = [-1, 0, 0]
+ 			body.blendSSList = [-1] * len(names)
+@@ -208,7 +260,7 @@
+ 			body.blendSSList = list(range(len(names)))
+ 			remap_names.extend(f"{name}_LOD{body_index}" for name in names)
+ 		channel_base = 0
+-		for target, rows in active:
++		for target_index, (target, rows) in enumerate(active):
+ 			target.blendSSIndex = channel_base if body_index == 0 else 0
+ 			channel_base += int(target.blendShapeNum)
+ 			target_rows = sum(int(entry.vertCount) for entry in target.subMeshEntryList)
+@@ -218,7 +270,11 @@
+ 				prefix += int(entry.vertCount)
+ 			for deltas, runs in rows:
+ 				for start, end in runs:
+-					payload.extend(_pack_rows(deltas[start:end]))
++					if keep_toon:
++						normal_runs.append((len(payload), int(target.subMeshEntryList[0].subMeshVertexStartIndex) - int(runs[0][0]) + start, end - start))
++						payload.extend(_pack_toon_rows(deltas[start:end], body.aabbList[target_index]))
++					else:
++						payload.extend(_pack_rows(deltas[start:end]))
+ 			row += target_rows * int(target.blendShapeNum)
+ 		header.blendShapeList.append(body)
+ 	header.count = len(header.blendShapeList)
+@@ -227,6 +283,8 @@
+ 		"header": header,
+ 		"shapeRemapNames": remap_names,
+ 		"payload": bytes(payload),
++		"keepToonNormals": keep_toon,
++		"normalRuns": normal_runs,
+ 	}
+ 
+ 
+@@ -247,6 +305,9 @@
+ 
+ def reserve_re4_normal_recalc(re_mesh, current_offset):
+ 	"""Reserve the LOD0 canonical-table section; returns the offset after it."""
++	if getattr(re_mesh, "_re4KeepToonNormals", False):
++		re_mesh.fileHeader.normalRecalcOffset = 0
++		return current_offset
+ 	_lod, vertex_count, index_count = _lod0_range(re_mesh)
+ 	offset = wilds._align16(current_offset)
+ 	size = (
+@@ -289,6 +350,29 @@
+ 	mesh_header.vertexElementSize = wilds._signed_short(payload_start & 0xFFFF)
+ 	mesh_header.unkn1 = wilds._signed_short((payload_start >> 16) & 0xFFFF)
+ 
++	if getattr(re_mesh, "_re4KeepToonNormals", False):
++		plan = re_mesh._blendShapeExportPlan
++		element = next((e for e in mesh_header.vertexElementList if int(e.typing) == 1), None)
++		if element is None or int(element.stride) != 8:
++			raise RuntimeError("RE4 toon normals require the exported 8-byte normal/tangent element")
++		vertex_count = int(element.posStartOffset) // 12
++		normals = np.frombuffer(bytes(mesh_header.vertexBuffer), dtype=np.int8,
++			count=vertex_count * 8, offset=int(element.posStartOffset)).reshape((-1, 8))
++		payload = bytearray(plan["payload"])
++		rows = np.frombuffer(payload, dtype=np.uint8).reshape((-1, 8))
++		for byte_start, vertex_start, count in plan["normalRuns"]:
++			if byte_start % 8 or vertex_start < 0 or vertex_start + count > vertex_count:
++				raise RuntimeError("Invalid RE4 authored-normal payload range")
++			start = byte_start // 8
++			rows[start:start + count, 4:7] = normals[vertex_start:vertex_start + count, :3].view(np.uint8)
++			rows[start:start + count, 7] = 0
++		if len(payload) != len(plan["payload"]):
++			raise RuntimeError("RE4 authored-normal payload size changed")
++		mesh_header.vertexBuffer[payload_start:payload_start + len(payload)] = payload
++		plan["payload"] = bytes(payload)
++		re_mesh.fileHeader.normalRecalcOffset = 0
++		re_mesh._re4NormalRecalcBlob = None
++		return
+ 	lod, vertex_count, _index_count = _lod0_range(re_mesh)
+ 	lod_range = {"lod": lod, "baseVertex": 0, "vertexCount": vertex_count, "baseFace": 0}
+ 	# Twins are rows with the same position and normals within 1 degree.
+--- a/modules/mesh/re_mesh_operators.py
++++ b/modules/mesh/re_mesh_operators.py
+@@ -27,6 +27,8 @@
+ 	"limitTotal": False,
+ 	"limitTotalCount": 8,
+ 	"shapeKeyExportMode": "KEEPNORMALS",
++	"re4NativeMouthTaps": False,
++	"re4KeepToonNormals": False,
+ 	"preserveMaterialTable": False,
+ }
+ class WM_OT_DeleteLoose(Operator):
+@@ -445,6 +447,8 @@
+ 						limitTotal = getattr(exportItem, "limitTotal", False),
+ 						limitTotalCount = weightLimit,
+ 						shapeKeyExportMode = getattr(exportItem, "shapeKeyExportMode", "KEEPNORMALS"),
++						re4NativeMouthTaps = getattr(exportItem, "re4NativeMouthTaps", False),
++						re4KeepToonNormals = getattr(exportItem, "re4KeepToonNormals", False),
+ 						rotate90 = exportItem.rotate90,
+ 						useBlenderMaterialName = exportItem.useBlenderMaterialName,
+ 						preserveBoneMatrices = exportItem.preserveBoneMatrices,
+@@ -632,9 +636,14 @@
+ 					row.label(text="Path is empty or missing the file version number on the end. ",icon = "ERROR")
+ 				if item.exportType == "MESH":
+ 					box.prop(item, "exportAllLODs")
+-					# RE4 has one blendshape layout: any mode except No exports it.
++					# RE4-specific switches select its receiver and normal layout.
+ 					if item.path.endswith((".241111606", ".221108797", ".260209350", ".2109148288")):
+ 						box.prop(item, "shapeKeyExportMode")
++					if item.path.endswith(".221108797"):
++						column = box.column()
++						column.enabled = item.shapeKeyExportMode != "NO"
++						column.prop(item, "re4NativeMouthTaps")
++						column.prop(item, "re4KeepToonNormals")
+ 					box.prop(item,"autoSolveRepeatedUVs")
+ 					box.prop(item,"preserveSharpEdges")
+ 					box.prop(item,"splitLoopVertices")
+--- a/modules/mesh/re_mesh_parse.py
++++ b/modules/mesh/re_mesh_parse.py
+@@ -588,11 +588,18 @@
+ 			# RE4 rows are absolute float16 deltas; Wilds rows are packed and
+ 			# scaled by the target AABB.
+ 			isRE4 = int(reMesh.meshVersion) in RE4_BLEND_SHAPE_MESH_VERSIONS
++			isRE4PackedNormals = (
++				isRE4
++				and int(getattr(reMesh.fileHeader, "normalRecalcOffset", 0) or 0) == 0
++				and int(getattr(blendData, "unknFlag", 1)) == 0
++			)
+ 			is888 = int(getattr(blendData, "padding1", 0) or 0) == 3
+ 			isMHRSB = int(reMesh.meshVersion) in MHRSB_BLEND_SHAPE_MESH_VERSIONS
+ 			if isMHRSB:
+ 				# Decoded per body by _parseMHRSBBlendShapes below.
+ 				reader = None
++			elif isRE4PackedNormals:
++				reader = ReadBlendShapeType7Buffer
+ 			elif isRE4:
+ 				reader = ReadBlendShapeRE4Buffer
+ 			elif is888:
+@@ -640,10 +647,10 @@
+ 			# Wilds no-recalc meshes (normalRecalcOffset == 0) and bodies with
+ 			# padding1 == 1 store 8 bytes per vertex: [position delta, second row].
+ 			# vertOffset counts vertices, so keep only the position rows.
+-			if not isRE4 and not isMHRSB and (
++			if isRE4PackedNormals or (not isRE4 and not isMHRSB and (
+ 				int(getattr(reMesh.fileHeader, "normalRecalcOffset", 0) or 0) == 0
+ 				or int(getattr(blendData, "padding1", 0) or 0) == 1
+-			):
++			)):
+ 				decoded = decoded[0::2]
+ 			activeCount = min(
+ 				int(getattr(blendData, "targetCount", 0) or 0),
+@@ -831,7 +838,7 @@
+ 							)
+ 							count = int(entry.vertCount)
+ 							deltas = decoded[start:start + count].copy()
+-							if not isRE4:
++							if not isRE4 or isRE4PackedNormals:
+ 								deltas = ApplyBlendShapeAABBToDecodedRows(
+ 									deltas,
+ 									blendData.aabbList[targetIndex],
+--- a/modules/mesh/re_mesh_propertyGroups.py
++++ b/modules/mesh/re_mesh_propertyGroups.py
+@@ -164,6 +164,14 @@
+ 	   name = "Preserve Original Material Table",
+ 	   description = "Keep the original material slot order of the imported mesh, including unused slots. New materials are appended at the end with a warning. Requires a mesh imported with this version of the addon",
+ 	   default = False)
++	re4NativeMouthTaps : BoolProperty(
++		name = "Add RE4 Mouth Receivers (9)",
++		description = "RE4 Leon replacement head: prepend nine zero-position native corrective receivers for the mouth9 ShapeKey System mapping",
++		default = False)
++	re4KeepToonNormals : BoolProperty(
++		name = "Keep RE4 Toon Normals (No Fins)",
++		description = "RE4: preserve the exported custom normal direction on every shape key; write packed-position and authored-normal rows without normal recalculation. Prepare cylindrical normals on the face first",
++		default = False)
+ 	# Mirrors ExportREMesh.shapeKeyExportMode in __init__.py; keep the two in sync.
+ 	shapeKeyExportMode : EnumProperty(
+ 		name = "Export Shapekeys?",

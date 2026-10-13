@@ -23,6 +23,12 @@ parts reuse mhwilds_blendshape. Layout of the six vanilla faces surveyed
 """
 
 import struct
+import json
+
+# RE4R Face Integration 0.70.6, funnyguyz (2026-10-13).
+# Additional mode observed on native RE4 chd000_00 and tested on Xiaoyu:
+# unknFlag=0, no recalc section, packed delta + authored int8 normal rows.
+# This fork preserves the static exported normal field on every key.
 
 import numpy as np
 
@@ -36,10 +42,38 @@ BLEND_HEADER_HASH = 2615081718160
 NORMAL_RECALC_HEADER_BYTES = 48
 
 
+RE4_NATIVE_MOUTH_TAPS = ('Face__geo__p000_cbs.crct_jaw_openExtreme', 'Face__geo__p000_cbs.crct_mouth_purse_L_U', 'Face__geo__p000_cbs.crct_mouth_purse_L_D', 'Face__geo__p000_cbs.crct_mouth_purse_R_U', 'Face__geo__p000_cbs.crct_mouth_purse_R_D', 'Face__geo__p000_cbs.crct_mouth_funnel_L_U', 'Face__geo__p000_cbs.crct_mouth_funnel_L_D', 'Face__geo__p000_cbs.crct_mouth_funnel_R_U', 'Face__geo__p000_cbs.crct_mouth_funnel_R_D')
+
+
+def parse_native_tap_names(value):
+	"""Explicit per-export receiver names, supplied by the head collection only."""
+	if value is None or value == "":
+		return []
+	if isinstance(value, str):
+		value = json.loads(value)
+	if not isinstance(value, (list, tuple)):
+		raise ValueError("RE4_native_taps must be a JSON list of full native channel names")
+	result = []
+	for name in value:
+		if not isinstance(name, str) or not name.startswith("Face__geo__p000_cbs.crct_") or len(name) <= len("Face__geo__p000_cbs.crct_") or any(c.isspace() for c in name):
+			raise ValueError("Invalid full RE4 native tap name: " + repr(name))
+		if name not in result:
+			result.append(name)
+	return result
+
+
 def _pack_rows(deltas):
 	deltas = np.asarray(deltas, dtype=np.float32).reshape((-1, 3))
 	rows = np.zeros((len(deltas), 4), dtype="<f2")
 	rows[:, :3] = deltas
+	return rows.tobytes()
+
+
+def _pack_toon_rows(deltas, aabb):
+	words = np.frombuffer(wilds._pack_delta_rows(deltas, aabb), dtype="<u4")
+	rows = np.zeros((len(words), 2), dtype="<u4")
+	rows[:, 0] = words
+	# Fill second words from the final exported geometry in finalize_re4_export.
 	return rows.tobytes()
 
 
@@ -86,7 +120,7 @@ def _submesh_runs(mask, ranges):
 	return wilds._mask_runs(marked)
 
 
-def _build_body(lod, parsed_to_mesh_info, channel_order=None):
+def _build_body(lod, parsed_to_mesh_info, channel_order=None, native_taps=()):
 	"""One blend body. LOD0 passes no order; higher LODs repeat LOD0's channels.
 
 	Returns (body, [(target, [(deltas, runs)])], names) or None when the LOD
@@ -103,12 +137,21 @@ def _build_body(lod, parsed_to_mesh_info, channel_order=None):
 	active = []
 	inactive = []
 	names = []
+	taps_added = False
 	for submeshes in groups:
 		if channel_order is None:
 			lo, valid, ranges, channels = _group_deltas(
 				submeshes, wilds._shape_names(submeshes)
 			)
+			# Receivers must be zero-delta. A real deformation under the same name is ambiguous.
+			for name, _deltas, moving in channels:
+				if name in native_taps and moving.any():
+					raise ValueError("Native receiver must have zero deltas: " + name)
 			channels = [channel for channel in channels if channel[2].any()]
+			# Attach once to the first active group; zeros share the custom channels' existing runs.
+			if channels and native_taps and not taps_added:
+				channels = [(name, np.zeros((len(valid), 3), dtype=np.float32), np.zeros(len(valid), dtype=bool)) for name in native_taps] + channels
+				taps_added = True
 		else:
 			lo, valid, ranges, channels = _group_deltas(submeshes, channel_order)
 			if not any(channel[2].any() for channel in channels):
@@ -156,10 +199,15 @@ def build_re4_blend_shape_plan(parsed_mesh, parsed_to_mesh_info):
 	lods = wilds._list_or_empty(getattr(parsed_mesh, "mainMeshLODList", None))
 	if not lods:
 		return None
+	native_taps = parse_native_tap_names(getattr(parsed_mesh, "_re4NativeTapNames", None))
 	wilds._drop_empty_shapes(lods)
-	built = _build_body(lods[0], parsed_to_mesh_info)
+	built = _build_body(lods[0], parsed_to_mesh_info, native_taps=native_taps)
 	if built is None:
+		if native_taps:
+			raise ValueError("Native taps require at least one moving custom shape key")
 		return None
+	if native_taps and not all(name in built[2] for name in native_taps):
+		raise ValueError("Requested native taps were not included in LOD0")
 	bodies = [built]
 	base_names = built[2]
 	for lod_index, lod in enumerate(lods[1:], start=1):
@@ -198,7 +246,11 @@ def build_re4_blend_shape_plan(parsed_mesh, parsed_to_mesh_info):
 	remap_names = list(base_names)
 	payload = bytearray()
 	row = 0
+	keep_toon = bool(getattr(parsed_mesh, "_re4KeepToonNormals", False))
+	normal_runs = []
 	for body_index, (body, active, names) in enumerate(bodies):
+		if keep_toon:
+			body.unknFlag = 0
 		if body_index == 0:
 			body.blendS = [-1, 0, 0]
 			body.blendSSList = [-1] * len(names)
@@ -208,7 +260,7 @@ def build_re4_blend_shape_plan(parsed_mesh, parsed_to_mesh_info):
 			body.blendSSList = list(range(len(names)))
 			remap_names.extend(f"{name}_LOD{body_index}" for name in names)
 		channel_base = 0
-		for target, rows in active:
+		for target_index, (target, rows) in enumerate(active):
 			target.blendSSIndex = channel_base if body_index == 0 else 0
 			channel_base += int(target.blendShapeNum)
 			target_rows = sum(int(entry.vertCount) for entry in target.subMeshEntryList)
@@ -218,7 +270,11 @@ def build_re4_blend_shape_plan(parsed_mesh, parsed_to_mesh_info):
 				prefix += int(entry.vertCount)
 			for deltas, runs in rows:
 				for start, end in runs:
-					payload.extend(_pack_rows(deltas[start:end]))
+					if keep_toon:
+						normal_runs.append((len(payload), int(target.subMeshEntryList[0].subMeshVertexStartIndex) - int(runs[0][0]) + start, end - start))
+						payload.extend(_pack_toon_rows(deltas[start:end], body.aabbList[target_index]))
+					else:
+						payload.extend(_pack_rows(deltas[start:end]))
 			row += target_rows * int(target.blendShapeNum)
 		header.blendShapeList.append(body)
 	header.count = len(header.blendShapeList)
@@ -227,6 +283,8 @@ def build_re4_blend_shape_plan(parsed_mesh, parsed_to_mesh_info):
 		"header": header,
 		"shapeRemapNames": remap_names,
 		"payload": bytes(payload),
+		"keepToonNormals": keep_toon,
+		"normalRuns": normal_runs,
 	}
 
 
@@ -247,6 +305,9 @@ def _lod0_range(re_mesh):
 
 def reserve_re4_normal_recalc(re_mesh, current_offset):
 	"""Reserve the LOD0 canonical-table section; returns the offset after it."""
+	if getattr(re_mesh, "_re4KeepToonNormals", False):
+		re_mesh.fileHeader.normalRecalcOffset = 0
+		return current_offset
 	_lod, vertex_count, index_count = _lod0_range(re_mesh)
 	offset = wilds._align16(current_offset)
 	size = (
@@ -289,6 +350,29 @@ def finalize_re4_export(re_mesh):
 	mesh_header.vertexElementSize = wilds._signed_short(payload_start & 0xFFFF)
 	mesh_header.unkn1 = wilds._signed_short((payload_start >> 16) & 0xFFFF)
 
+	if getattr(re_mesh, "_re4KeepToonNormals", False):
+		plan = re_mesh._blendShapeExportPlan
+		element = next((e for e in mesh_header.vertexElementList if int(e.typing) == 1), None)
+		if element is None or int(element.stride) != 8:
+			raise RuntimeError("RE4 toon normals require the exported 8-byte normal/tangent element")
+		vertex_count = int(element.posStartOffset) // 12
+		normals = np.frombuffer(bytes(mesh_header.vertexBuffer), dtype=np.int8,
+			count=vertex_count * 8, offset=int(element.posStartOffset)).reshape((-1, 8))
+		payload = bytearray(plan["payload"])
+		rows = np.frombuffer(payload, dtype=np.uint8).reshape((-1, 8))
+		for byte_start, vertex_start, count in plan["normalRuns"]:
+			if byte_start % 8 or vertex_start < 0 or vertex_start + count > vertex_count:
+				raise RuntimeError("Invalid RE4 authored-normal payload range")
+			start = byte_start // 8
+			rows[start:start + count, 4:7] = normals[vertex_start:vertex_start + count, :3].view(np.uint8)
+			rows[start:start + count, 7] = 0
+		if len(payload) != len(plan["payload"]):
+			raise RuntimeError("RE4 authored-normal payload size changed")
+		mesh_header.vertexBuffer[payload_start:payload_start + len(payload)] = payload
+		plan["payload"] = bytes(payload)
+		re_mesh.fileHeader.normalRecalcOffset = 0
+		re_mesh._re4NormalRecalcBlob = None
+		return
 	lod, vertex_count, _index_count = _lod0_range(re_mesh)
 	lod_range = {"lod": lod, "baseVertex": 0, "vertexCount": vertex_count, "baseFace": 0}
 	# Twins are rows with the same position and normals within 1 degree.

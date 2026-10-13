@@ -27,6 +27,8 @@ _BATCH_MESH_FIX_DEFAULTS = {
 	"limitTotal": False,
 	"limitTotalCount": 8,
 	"shapeKeyExportMode": "KEEPNORMALS",
+	"re4NativeMouthTaps": False,
+	"re4KeepToonNormals": False,
 	"preserveMaterialTable": False,
 }
 class WM_OT_DeleteLoose(Operator):
@@ -445,6 +447,8 @@ class WM_OT_REBatchExporter(Operator):
 						limitTotal = getattr(exportItem, "limitTotal", False),
 						limitTotalCount = weightLimit,
 						shapeKeyExportMode = getattr(exportItem, "shapeKeyExportMode", "KEEPNORMALS"),
+						re4NativeMouthTaps = getattr(exportItem, "re4NativeMouthTaps", False),
+						re4KeepToonNormals = getattr(exportItem, "re4KeepToonNormals", False),
 						rotate90 = exportItem.rotate90,
 						useBlenderMaterialName = exportItem.useBlenderMaterialName,
 						preserveBoneMatrices = exportItem.preserveBoneMatrices,
@@ -632,9 +636,14 @@ class WM_OT_REBatchExporter(Operator):
 					row.label(text="Path is empty or missing the file version number on the end. ",icon = "ERROR")
 				if item.exportType == "MESH":
 					box.prop(item, "exportAllLODs")
-					# RE4 has one blendshape layout: any mode except No exports it.
+					# RE4-specific switches select its receiver and normal layout.
 					if item.path.endswith((".241111606", ".221108797", ".260209350", ".2109148288")):
 						box.prop(item, "shapeKeyExportMode")
+					if item.path.endswith(".221108797"):
+						column = box.column()
+						column.enabled = item.shapeKeyExportMode != "NO"
+						column.prop(item, "re4NativeMouthTaps")
+						column.prop(item, "re4KeepToonNormals")
 					box.prop(item,"autoSolveRepeatedUVs")
 					box.prop(item,"preserveSharpEdges")
 					box.prop(item,"splitLoopVertices")

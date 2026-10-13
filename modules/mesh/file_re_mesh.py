@@ -2476,6 +2476,7 @@ def ParsedREMeshToREMesh(parsedMesh,meshVersion,normalizeWeights=True):
 		if blendShapePlan is not None:
 			from .mhwilds_blendshape import relocate_blend_shape_header
 			from .re4_blendshape import reserve_re4_normal_recalc
+			reMesh._re4KeepToonNormals = bool(blendShapePlan.get("keepToonNormals", False))
 			currentOffset = reserve_re4_normal_recalc(reMesh, currentOffset)
 			reMesh.fileHeader.blendShapesOffset = currentOffset
 			reMesh.blendShapeHeader = blendShapePlan["header"]
