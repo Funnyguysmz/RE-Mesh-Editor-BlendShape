@@ -11,10 +11,10 @@ import numpy as np
 
 ROOT = Path(__file__).resolve().parent
 PROJECT = ROOT
-TEST = ROOT / 'output/synthetic'
+TEST = ROOT / 'output/re4r.2/synthetic'
 TEST.mkdir(parents=True, exist_ok=True)
 baseline_only = '--upstream' in sys.argv
-plugin = ROOT / 'output/upstream' if baseline_only else ROOT
+plugin = ROOT / 'output/re4r.2/upstream' if baseline_only else ROOT
 
 
 def forbid_dlls(event, args):
@@ -69,7 +69,7 @@ def parse(path):
     return mesh, parsed, shapes
 
 
-common = dict(targetCollection=collection.name, shapeKeyExportMode='MODE1', rotate90=True,
+common = dict(targetCollection=collection.name, rotate90=True,
     exportAllLODs=False, selectedOnly=False, useBlenderMaterialName=False,
     preserveBoneMatrices=False, preserveMaterialTable=False, autoSolveRepeatedUVs=False,
     preserveSharpEdges=False, splitLoopVertices=False, limitTotal=False, normalizeWeights=False)
@@ -98,7 +98,7 @@ if baseline_only:
     assert len(shapes) == 1 and mesh.fileHeader.normalRecalcOffset != 0
     (ROOT / 'reports/upstream_baseline.json').write_text(json.dumps(dict(status='PASS', channels=1,
         mesh=path.relative_to(ROOT).as_posix(), sha256=hashlib.sha256(path.read_bytes()).hexdigest()), indent=2), encoding='utf-8')
-    print('UPSTREAM_0705_BASELINE_PASS')
+    print('UPSTREAM_0706_BASELINE_PASS')
     raise SystemExit
 
 core = importlib.import_module(name + '.modules.mesh.re4_blendshape')
@@ -187,6 +187,6 @@ except RuntimeError as error:
     assert 'Native receiver must have zero deltas' in str(error), str(error)
 else:
     raise AssertionError('Nonzero receiver conflict accepted')
-report=dict(status='PASS',fixture='generated quad and Move key; no private/game assets',blender_version=bpy.app.version_string,export_matrix=results,default_export_byte_identical_upstream=True,geometry_identical_all_four_modes=True,batch_flags_persisted_and_exported=True,no_shape_mode_ignores_switches=True,new_format_reimport_and_reexport=True,nonzero_receiver_conflict_rejected=True,supplied_dlls_executed=False,game_validation='Integrated 94-channel real-model combination pending game feedback')
+report=dict(status='PASS', upstream_baseline='c030c89f95e6f20c697c402d21b7bae7ec8a52e9', selector='upstream default KEEPNORMALS_SURFACE',fixture='generated quad and Move key; no private/game assets',blender_version=bpy.app.version_string,export_matrix=results,default_export_byte_identical_upstream=True,geometry_identical_all_four_modes=True,batch_flags_persisted_and_exported=True,no_shape_mode_ignores_switches=True,new_format_reimport_and_reexport=True,nonzero_receiver_conflict_rejected=True,supplied_dlls_executed=False,game_validation='Merged re4r.2 and integrated 94-channel real-model combination pending new game feedback')
 (ROOT/'reports/synthetic_blender.json').write_text(json.dumps(report,indent=2))
 print('SYNTHETIC_RE4R_PASS')

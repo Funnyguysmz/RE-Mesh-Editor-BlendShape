@@ -1,0 +1,51 @@
+{
+  "status": "PASS",
+  "fixture": "generated quad and Move key; no private/game assets",
+  "blender_version": "4.3.2",
+  "export_matrix": {
+    "no_taps_recalc": {
+      "file": "output/synthetic/no_taps_recalc.mesh.221108797",
+      "channels": 1,
+      "normal_recalc_offset": 320,
+      "vertices": 4,
+      "bones": 0,
+      "authored_normal_rows_verified": 0,
+      "sha256": "588058f60bc6db82c942acd3e786733aa78a2a8f0f70608e4e838ad5b895037c"
+    },
+    "mouth9_recalc": {
+      "file": "output/synthetic/mouth9_recalc.mesh.221108797",
+      "channels": 10,
+      "normal_recalc_offset": 320,
+      "vertices": 4,
+      "bones": 0,
+      "authored_normal_rows_verified": 0,
+      "sha256": "9896666dbe22f732680cc06152b6d42388aadd3a96a3adf25edbaec434dc8b47"
+    },
+    "no_taps_toon": {
+      "file": "output/synthetic/no_taps_toon.mesh.221108797",
+      "channels": 1,
+      "normal_recalc_offset": 0,
+      "vertices": 4,
+      "bones": 0,
+      "authored_normal_rows_verified": 4,
+      "sha256": "5ff82854b39a953efa0b21cd336c9597051fdf833c07442e869ea36514e9978c"
+    },
+    "mouth9_toon": {
+      "file": "output/synthetic/mouth9_toon.mesh.221108797",
+      "channels": 10,
+      "normal_recalc_offset": 0,
+      "vertices": 4,
+      "bones": 0,
+      "authored_normal_rows_verified": 40,
+      "sha256": "8e97224474bb3e19b19ecac9f8d09d87d9edaff4aeaf68d930e09f256f80174d"
+    }
+  },
+  "default_export_byte_identical_upstream": true,
+  "geometry_identical_all_four_modes": true,
+  "batch_flags_persisted_and_exported": true,
+  "no_shape_mode_ignores_switches": true,
+  "new_format_reimport_and_reexport": true,
+  "nonzero_receiver_conflict_rejected": true,
+  "supplied_dlls_executed": false,
+  "game_validation": "Integrated 94-channel real-model combination pending game feedback"
+}

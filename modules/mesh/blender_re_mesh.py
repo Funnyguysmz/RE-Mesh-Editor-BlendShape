@@ -38,21 +38,31 @@ import numpy as np
 timeFormat = "%d"
 rotateNeg90Matrix = Matrix.Rotation(radians(-90.0), 4, 'X')
 rotate90Matrix = Matrix.Rotation(radians(90.0), 4, 'X')
+TRIANGULATE_NORMALS_ATTRIBUTE = "_reme_corner_normal"
+
+
 def triangulateMesh(mesh):
-     #BMesh triangulation screws up normals, so save them and reset them after triangulation
-    #custom_normals = None
-    #if mesh.has_custom_normals:
-    #    custom_normals = [0.0]*len(mesh.vertices)
-    #    for vertex in mesh.vertices:
-    #        custom_normals[vertex.index] = vertex.normal.copy()
+    # Custom normals are stored relative to each corner's edges, so splitting
+    # quads swings stylised ones (up to ~90 degrees). Carry the corner normals
+    # through bmesh in a corner attribute and set them back afterwards.
+    keepNormals = bpy.app.version >= (4, 1, 0) and mesh.has_custom_normals
+    if keepNormals:
+        normals = np.empty(len(mesh.loops) * 3, dtype=np.float32)
+        mesh.corner_normals.foreach_get("vector", normals)
+        attribute = mesh.attributes.new(TRIANGULATE_NORMALS_ATTRIBUTE, "FLOAT_VECTOR", "CORNER")
+        attribute.data.foreach_set("vector", normals)
 
     bm = bmesh.new()
     bm.from_mesh(mesh)
     bmesh.ops.triangulate(bm, faces = bm.faces[:])
     bm.to_mesh(mesh)
     bm.free()
-    #if custom_normals:
-        #mesh.normals_split_custom_set_from_vertices(custom_normals)
+    if keepNormals:
+        attribute = mesh.attributes[TRIANGULATE_NORMALS_ATTRIBUTE]
+        normals = np.empty(len(mesh.loops) * 3, dtype=np.float32)
+        attribute.data.foreach_get("vector", normals)
+        mesh.attributes.remove(attribute)
+        mesh.normals_split_custom_set(normals.reshape(-1, 3).tolist())
 
 SIX_WEIGHT_GAME_NAMES = frozenset(("SF6", "MHWILDS", "PRAG", "MHS3", "ONIWOTS"))
 EXTENDED_WEIGHT_GAME_NAMES = frozenset(("MHWILDS", "PRAG", "MHS3", "ONIWOTS"))
@@ -165,6 +175,114 @@ def _export_shape_key_name(meshData, shapeKey):
 	if fullNames is not None and shapeKey.name in fullNames:
 		return str(fullNames[shapeKey.name])
 	return shapeKey.name
+
+
+# Static Normals, set per key in the Shape Keys panel (stylised faces whose
+# shading is authored, not lit from the geometry). An exported key then stores
+# the authored normals instead of normals turned by its deformation; a locked
+# key bakes its positions into the basis but leaves the basis normals as they
+# were. Keyed by the Blender key name on the Key datablock (shape keys cannot
+# hold properties); renames are carried over by re_mesh_operators.
+STATIC_NORMALS_PROPERTY = "RE_StaticNormals"
+
+
+def hasStaticNormals(meshData, shapeKey):
+	keys = meshData.shape_keys
+	flagged = keys.get(STATIC_NORMALS_PROPERTY) if keys is not None else None
+	return flagged is not None and shapeKey.name in flagged
+
+
+def setStaticNormals(meshData, keyName, static):
+	keys = meshData.shape_keys
+	if keys is None:
+		return False
+	if keys.get(STATIC_NORMALS_PROPERTY) is None:
+		if not static:
+			return True
+		keys[STATIC_NORMALS_PROPERTY] = {}
+	flagged = keys[STATIC_NORMALS_PROPERTY]
+	if static:
+		flagged[keyName] = 1
+	elif keyName in flagged:
+		del flagged[keyName]
+	return True
+
+
+def _evaluated_mesh_with_key_values(obj, values):
+	"""Evaluated copy of obj with every non-basis key set by values (default 0)."""
+	keyBlocks = obj.data.shape_keys.key_blocks
+	stored = [(key, key.value) for key in keyBlocks]
+	try:
+		for key in keyBlocks[1:]:
+			key.value = values.get(key.name, 0.0)
+		obj.data.update()
+		bpy.context.view_layer.update()
+		depsgraph = bpy.context.evaluated_depsgraph_get()
+		return bpy.data.meshes.new_from_object(obj.evaluated_get(depsgraph))
+	finally:
+		_restore_shape_key_values(stored)
+		obj.data.update()
+		bpy.context.view_layer.update()
+
+
+def _geometric_corner_normals(mesh):
+	"""Corner normals of mesh with its custom normals reset to automatic."""
+	plain = mesh.copy()
+	try:
+		plain.normals_split_custom_set([(0.0, 0.0, 0.0)] * len(plain.loops))
+		return _corner_normal_arrays(plain)[1]
+	finally:
+		bpy.data.meshes.remove(plain)
+
+
+def _bake_locked_key_normals(obj, bakedMesh):
+	"""Normals of bakedMesh (obj evaluated with its locked keys applied).
+
+	Blender decodes custom normals against the surrounding geometry, so a locked
+	key that shears a stylised surface swings them (the blotches around eyes and
+	mouth). Instead the authored normals are turned by the surface's real turn
+	under the locked keys, which equals Blender's own result on meshes whose
+	normals are not stylised. Static Normals keys only move the positions.
+	"""
+	if bpy.app.version < (4, 1, 0) or obj.data.shape_keys is None:
+		return
+	locked = [
+		key for key in obj.data.shape_keys.key_blocks
+		if _is_baked_shape_key(key) and not key.mute and key.value != 0.0
+	]
+	if not locked:
+		return
+	static = [key for key in locked if hasStaticNormals(obj.data, key)]
+	if not obj.data.has_custom_normals and not static:
+		return
+	authoredMesh = _evaluated_mesh_with_key_values(obj, {})
+	turnedMesh = _evaluated_mesh_with_key_values(
+		obj, {key.name: key.value for key in locked if key not in static}
+	)
+	try:
+		authoredCorners, authored = _corner_normal_arrays(authoredMesh)
+		turnedCorners = _corner_normal_arrays(turnedMesh)[0]
+		bakedCorners = np.empty(len(bakedMesh.loops), dtype=np.int32)
+		bakedMesh.loops.foreach_get("vertex_index", bakedCorners)
+		if not (
+			np.array_equal(authoredCorners, bakedCorners)
+			and np.array_equal(turnedCorners, bakedCorners)
+		):
+			print(f"Locked shape keys on {obj.name} change topology; keeping Blender's normals")
+			return
+		normals = _rotate_normals(
+			authored,
+			_geometric_corner_normals(authoredMesh),
+			_geometric_corner_normals(turnedMesh),
+		)
+		bakedMesh.normals_split_custom_set(normals.tolist())
+		print(
+			f"Baked locked shape keys on {obj.name} with the authored normals turned by the surface"
+			+ (f"; static normals: {', '.join(key.name for key in static)}" if static else "")
+		)
+	finally:
+		bpy.data.meshes.remove(authoredMesh)
+		bpy.data.meshes.remove(turnedMesh)
 
 
 def _get_export_shape_keys(meshData):
@@ -289,6 +407,7 @@ def _build_blend_shape_entries_for_export(
 	evaluatedBasisMesh,
 	exportShapeKeys=True,
 	exportNormals=None,
+	surfaceTurn=False,
 ):
 	"""Evaluate each Blender key through the same geometry path as the basis.
 
@@ -296,6 +415,8 @@ def _build_blend_shape_entries_for_export(
 	`normals`: the row normal after the key is applied. The basis-to-key turn
 	of the matching evaluated corner is applied to the exported normal, so
 	authored normals stay authored and only the deformation is added.
+	surfaceTurn takes the turn from the geometric normals instead of Blender's
+	decoded custom normals, which swing where a key shears stylised normals.
 	"""
 	if (
 		not _game_supports_blend_shapes(gameName)
@@ -327,6 +448,9 @@ def _build_blend_shape_entries_for_export(
 		if wantNormals:
 			basisCornerVertices, basisCornerNormals = _corner_normal_arrays(
 				rawBasisMesh
+			)
+			basisTurnNormals = (
+				_geometric_corner_normals(rawBasisMesh) if surfaceTurn else basisCornerNormals
 			)
 		if any(
 			len(face.vertices) != 3 for face in rawBasisMesh.polygons
@@ -383,16 +507,21 @@ def _build_blend_shape_entries_for_export(
 			shapeNormals = None
 			try:
 				shapeMesh.transform(transformMatrix)
-				if wantNormals:
+				if wantNormals and hasStaticNormals(rawsubmesh.data, shapeKey):
+					# Static Normals (Shape Keys panel): the authored normals, unturned
+					shapeNormals = baseNormals.copy()
+				elif wantNormals:
 					shapeCornerVertices, shapeCornerNormals = _corner_normal_arrays(
 						shapeMesh
 					)
 					if np.array_equal(shapeCornerVertices, basisCornerVertices):
+						if surfaceTurn:
+							shapeCornerNormals = _geometric_corner_normals(shapeMesh)
 						shapeNormals = baseNormals.copy()
 						corners = rowCorners[hasCorner]
 						shapeNormals[hasCorner] = _rotate_normals(
 							baseNormals[hasCorner],
-							basisCornerNormals[corners],
+							basisTurnNormals[corners],
 							shapeCornerNormals[corners],
 						)
 					else:
@@ -1896,6 +2025,7 @@ Use the "Limit Total and Normalize All Weights" button the RE Mesh tab.
 						_restore_shape_key_values(storedShapeValues)
 						obj.data.update()
 						bpy.context.view_layer.update()
+					_bake_locked_key_normals(obj, cloneObj.data)
 				else:
 					cloneObj.data = bpy.data.meshes.new_from_object(
 						obj.evaluated_get(dg), preserve_all_data_layers=True, depsgraph=dg
@@ -2581,6 +2711,7 @@ Use the "Limit Total and Normalize All Weights" button the RE Mesh tab.
 							and options.get("blendShapeExportMode") == -1
 							else None
 						),
+						surfaceTurn=options.get("shapeKeyNormalTurn") == "SURFACE",
 					)
 				)
 				if gameName == "MHWILDS":

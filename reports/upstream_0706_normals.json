@@ -1,0 +1,232 @@
+{
+  "status": "PASS",
+  "upstream_baseline": "c030c89f95e6f20c697c402d21b7bae7ec8a52e9",
+  "fixture": "generated spheres, quad and pentagon only",
+  "upstream_checks": [
+    {
+      "name": "toggle on",
+      "passed": true,
+      "detail": ""
+    },
+    {
+      "name": "toggle off",
+      "passed": true,
+      "detail": ""
+    },
+    {
+      "name": "toggle polls false on Basis",
+      "passed": true,
+      "detail": ""
+    },
+    {
+      "name": "All flags exported and locked keys, skips muted / DUMMY_",
+      "passed": true,
+      "detail": "['lockA', 'lockS', 'squash', 'squash_static']"
+    },
+    {
+      "name": "None clears every flag",
+      "passed": true,
+      "detail": ""
+    },
+    {
+      "name": "rename moves the flag",
+      "passed": true,
+      "detail": "['lockS_renamed']"
+    },
+    {
+      "name": "adding a key does not move flags",
+      "passed": true,
+      "detail": "['lockS']"
+    },
+    {
+      "name": "stylised export",
+      "passed": true,
+      "detail": ""
+    },
+    {
+      "name": "Static key rows store the base normal",
+      "passed": true,
+      "detail": "224/224"
+    },
+    {
+      "name": "same deltas without Static turn the normals",
+      "passed": true,
+      "detail": "174/224"
+    },
+    {
+      "name": "same rows stored for both keys",
+      "passed": true,
+      "detail": "(224, 224)"
+    },
+    {
+      "name": "locked keys: authored normals turned by the surface, Static lock adds none",
+      "passed": true,
+      "detail": "min cos 0.9999"
+    },
+    {
+      "name": "rows moved only by the Static lock keep the authored normal",
+      "passed": true,
+      "detail": "28 rows, min cos 0.9999"
+    },
+    {
+      "name": "rows moved by the plain lock are turned",
+      "passed": true,
+      "detail": "min cos 0.9739"
+    },
+    {
+      "name": "plain export",
+      "passed": true,
+      "detail": ""
+    },
+    {
+      "name": "non-stylised: baked normals follow the baked shape",
+      "passed": true,
+      "detail": "min cos 0.9999"
+    },
+    {
+      "name": "plain export, surface turn",
+      "passed": true,
+      "detail": ""
+    },
+    {
+      "name": "non-stylised: surface turn rows equal Keep Normals (as in Blender) within 1 step",
+      "passed": true,
+      "detail": ""
+    },
+    {
+      "name": "stylised export, surface turn",
+      "passed": true,
+      "detail": ""
+    },
+    {
+      "name": "surface turn: key rows are authored normals turned by the surface",
+      "passed": true,
+      "detail": "257 rows, min cos 0.9999"
+    }
+  ],
+  "re4_checks": [
+    {
+      "name": "New export default is surface turn",
+      "passed": true,
+      "detail": ""
+    },
+    {
+      "name": "RE4 generated two keys plus nine receivers",
+      "passed": true,
+      "detail": ""
+    },
+    {
+      "name": "RE4 packed no-recalc marker",
+      "passed": true,
+      "detail": ""
+    },
+    {
+      "name": "Every RE4 key and receiver repeats final base normal bytes",
+      "passed": true,
+      "detail": ""
+    },
+    {
+      "name": "RE4 locked surface turn excludes Static locked key",
+      "passed": true,
+      "detail": 0.9999132821451249
+    },
+    {
+      "name": "RE4 packed bytes independent of generic selector MODE1",
+      "passed": true,
+      "detail": ""
+    },
+    {
+      "name": "RE4 recalc selector compatibility MODE1",
+      "passed": true,
+      "detail": ""
+    },
+    {
+      "name": "RE4 packed bytes independent of generic selector KEEPNORMALS",
+      "passed": true,
+      "detail": ""
+    },
+    {
+      "name": "RE4 recalc selector compatibility KEEPNORMALS",
+      "passed": true,
+      "detail": ""
+    },
+    {
+      "name": "RE4 recalc bytes equal MODE1 KEEPNORMALS",
+      "passed": true,
+      "detail": ""
+    },
+    {
+      "name": "RE4 packed bytes independent of generic selector KEEPNORMALS_SURFACE",
+      "passed": true,
+      "detail": ""
+    },
+    {
+      "name": "RE4 recalc selector compatibility KEEPNORMALS_SURFACE",
+      "passed": true,
+      "detail": ""
+    },
+    {
+      "name": "RE4 recalc bytes equal MODE1 KEEPNORMALS_SURFACE",
+      "passed": true,
+      "detail": ""
+    },
+    {
+      "name": "RE4 exported-key Static flag has no per-key payload effect",
+      "passed": true,
+      "detail": ""
+    },
+    {
+      "name": "RE4 locked Static flag changes baked base normals",
+      "passed": true,
+      "detail": ""
+    },
+    {
+      "name": "RE4 changed locked base still repeated on every key",
+      "passed": true,
+      "detail": ""
+    },
+    {
+      "name": "Triangulate authored corner normals, sides=4",
+      "passed": true,
+      "detail": 1.0000000329540049
+    },
+    {
+      "name": "Triangulation helper leaves no temporary normal attribute, sides=4",
+      "passed": true,
+      "detail": ""
+    },
+    {
+      "name": "Actual RE4 export preserves polygon authored normals, sides=4",
+      "passed": true,
+      "detail": 0.999962387619645
+    },
+    {
+      "name": "Actual RE4 polygon morph normals repeat the final base bytes, sides=4",
+      "passed": true,
+      "detail": ""
+    },
+    {
+      "name": "Triangulate authored corner normals, sides=5",
+      "passed": true,
+      "detail": 0.9999999353768594
+    },
+    {
+      "name": "Triangulation helper leaves no temporary normal attribute, sides=5",
+      "passed": true,
+      "detail": ""
+    },
+    {
+      "name": "Actual RE4 export preserves polygon authored normals, sides=5",
+      "passed": true,
+      "detail": 0.9999517936791686
+    },
+    {
+      "name": "Actual RE4 polygon morph normals repeat the final base bytes, sides=5",
+      "passed": true,
+      "detail": ""
+    }
+  ],
+  "bundled_libraries_executed": false,
+  "re4_semantics": "Surface turn and Static affect locked-key base baking. RE4 packed morphs always repeat final base normals; generic selector and exported-key Static do not override that.",
+  "game_feedback": "Merged build pending new in-game feedback"
+}

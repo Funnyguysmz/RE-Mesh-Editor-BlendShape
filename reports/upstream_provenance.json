@@ -1,9 +1,25 @@
 {
   "upstream": "Dimcirui/RE-Mesh-Editor-BlendShape",
-  "baseline_commit": "5c0ac95bcda08a36fe149523c986b89a77725ec6",
-  "original_zip_entries": 174,
-  "all_zip_entries_match_after_line_ending_normalization": true,
-  "changed_original_files": [
+  "baseline_tag": "v0.70.6",
+  "baseline_commit": "c030c89f95e6f20c697c402d21b7bae7ec8a52e9",
+  "previous_derivative_tag": "v0.70.6-re4r.1",
+  "previous_derivative_commit": "72676bfb7af77bf2ae69434fe31a45356ebb77e1",
+  "upstream_changed_files": [
+    "README.md",
+    "__init__.py",
+    "modules/mesh/blender_re_mesh.py",
+    "modules/mesh/re_mesh_operators.py",
+    "modules/mesh/re_mesh_propertyGroups.py",
+    "tests/README.md",
+    "tests/test_static_normals_blender.py"
+  ],
+  "conflicts_resolved": {
+    "README.md": "public derivative guide with new upstream README retained separately",
+    "__init__.py": "fork identity and upstream normal registration merged",
+    "modules/mesh/re_mesh_operators.py": "new default plus preserved receiver/normal flags and batch forwarding"
+  },
+  "re4_semantics_unchanged": true,
+  "source_modifications_relative_to_upstream": [
     "__init__.py",
     "modules/mesh/blender_re_mesh.py",
     "modules/mesh/file_re_mesh.py",
@@ -12,10 +28,17 @@
     "modules/mesh/re_mesh_parse.py",
     "modules/mesh/re_mesh_propertyGroups.py"
   ],
-  "date": "2026-10-13",
-  "unchanged_original_files_same_path": 166,
-  "original_readme_preserved_byte_identical_as": "README_UPSTREAM.md",
-  "public_documentation_changes": [
-    "README.md"
-  ]
+  "game_validation": "Merged build pending new feedback",
+  "date": "2026-10-14",
+  "original_re4r1_archive_retained": true,
+  "license_notices_and_binaries_byte_identical_upstream": {
+    "LICENSE.GPL": "97467b12240a3432edba25564c61e012ae380fa7dacfad224c803d02483593d7",
+    "modules/ddsconv/directx/THIRD_PARTY_LICENSES.txt": "6176ee2470aa600b65c0846c89f220ad49644efe8aa616a5bc09019a2b9f4a0e",
+    "modules/ddsconv/credit.txt": "7b88fe800ecca8fb2e40faf63f8057c2061c5d901597bd834501cd59300fef5b",
+    "modules/ddsconv/directx/libtexconv.dylib": "e6b95e49ed20c19bcb5f575bcf7c99284df584113ab84a56f0f8d5453f430907",
+    "modules/ddsconv/directx/libtexconv.so": "9458ed8eb264beef1cd8b4f45b635a14b720d5bf889776e6926cbdab2eec214d",
+    "modules/ddsconv/directx/texconv.dll": "6b80de990e8bcc7c10e274effbb3d192ae8713f8f60630ec6f88be0f4705a20e",
+    "modules/gdeflate/GDeflateWrapper.dll": "7782fd70400947d79a34dc12e65f679c30cf02bc01784c01a826d53ecc7743d5",
+    "modules/gdeflate/libGDeflateWrapper.so": "bd5fd8adc46f964724011d97c1b49e2657913fb8882cbf17cbc812c8de9267db"
+  }
 }

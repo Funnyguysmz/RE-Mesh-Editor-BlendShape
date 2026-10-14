@@ -1,6 +1,6 @@
 {
   "status": "PASS",
   "channels": 1,
-  "mesh": "output/synthetic/upstream.mesh.221108797",
+  "mesh": "output/re4r.2/synthetic/upstream.mesh.221108797",
   "sha256": "588058f60bc6db82c942acd3e786733aa78a2a8f0f70608e4e838ad5b895037c"
 }

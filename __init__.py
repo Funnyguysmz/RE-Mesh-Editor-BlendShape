@@ -1,7 +1,7 @@
 #Author: NSA Cloud
 bl_info = {
 	"name": "RE-Mesh-Editor-BlendShape (RE4R Face Integration)",
-	"author": "NSA Cloud, Forked by Ridog8, BlendShape by Dimcirui, RE4R integration by funnyguyz (2026-10-13)",
+	"author": "NSA Cloud, Forked by Ridog8, BlendShape by Dimcirui, RE4R integration by funnyguyz (2026-10-14)",
 	"version": (0, 70, 6),
 	"blender": (4, 3, 2),
 	"location": "File > Import-Export",
@@ -24,6 +24,17 @@ bl_info = {
 # re9_blendshape_export: RE9 (.250925211) exportfile takes NO / MODE1 /
 # KEEPNORMALS (version 1 always exported MODE1).
 # Version 2: shapeKeyExportMode has no MODE0 (marker 0) any more.
+# static_normals: per-key Static Normals, stored as Key["RE_StaticNormals"] =
+# {Blender key name: 1}; operators re_mesh.toggle_static_normals (active key) and
+# re_mesh.set_static_normals(static=True/False). Exported keys keep the authored
+# normals (Keep Normals export); locked keys bake positions only. Locked keys
+# without it bake with the authored normals turned by the surface.
+# RE4: surface-turn/per-key Static affects locked-key base baking only.
+# The RE4 no-recalc writer repeats final base normals for every exported key.
+# surface_turn_export: shapeKeyExportMode KEEPNORMALS_SURFACE (keep-normals layout,
+# key normals turned by the geometric surface turn).
+RE4R_INTEGRATION_RELEASE = "v0.70.6-re4r.2"
+
 REME_FEATURES = {
 	"wilds_blendshape_export": 2,
 	"re4_blendshape_export": 2,
@@ -32,6 +43,8 @@ REME_FEATURES = {
 	"oniwots_blendshape_export": 2,
 	"mhrise_blendshape_export": 2,
 	"re9_blendshape_export": 2,
+	"static_normals": 1,
+	"surface_turn_export": 1,
 }
 
 import bpy
@@ -61,6 +74,11 @@ from .modules.mesh.re_mesh_operators import (
 	WM_OT_REBatchExporter,
 	WM_OT_SolveRepeatedUVs,
 	WM_OT_QuickBatchExport,
+	WM_OT_ToggleStaticNormals,
+	WM_OT_SetStaticNormals,
+	draw_static_normals,
+	register_static_normals,
+	unregister_static_normals,
 
 )
 from .modules.mesh.ui_re_mesh_panels import (
@@ -1077,11 +1095,16 @@ class ExportREMesh(Operator, ExportHelper):
 			),
 			(
 				"KEEPNORMALS",
-				"Keep Custom Normals",
+				"Keep Normals (as in Blender)",
 				"Vanilla no-recalc layout (as on the Seikret): no normal-recalc marker, no recalc tables, 8-byte delta rows. The game keeps the authored custom normals while shape keys deform the geometry"
 			),
+			(
+				"KEEPNORMALS_SURFACE",
+				"Keep Normals (surface turn)",
+				"Same layout as Keep Normals (as in Blender). Each key's normals turn only with the real turn of the surface, so stylised custom normals keep their offset where a key shears or squashes the mesh (eyelids, lips) instead of following Blender's re-decoded normals. On meshes whose normals are not stylised the result is the same"
+			),
 		],
-		default = "KEEPNORMALS"
+		default = "KEEPNORMALS_SURFACE"
 	)
 	re4NativeMouthTaps : BoolProperty(
 		name = "Add RE4 Mouth Receivers (9)",
@@ -1237,11 +1260,13 @@ class ExportREMesh(Operator, ExportHelper):
 					split.label(text="Export Shapekeys?")
 					split.prop(self, "shapeKeyExportMode", text="")
 					if self.filename_ext == ".221108797":
-						layout.label(text="RE4: use the switches below for receivers and toon normals", icon="INFO")
+						layout.label(text="RE4: non-No modes enable keys; the switches below choose layout", icon="INFO")
 						column = layout.column()
 						column.enabled = self.shapeKeyExportMode != "NO"
 						column.prop(self, "re4NativeMouthTaps")
 						column.prop(self, "re4KeepToonNormals")
+						layout.label(text="RE4 key normals: final base normals on every key", icon="INFO")
+						layout.label(text="Static Normals affects locked-key base baking")
 
 		layout.prop(self, "rotate90")
 		layout.prop(self, "useBlenderMaterialName")
@@ -1265,7 +1290,7 @@ class ExportREMesh(Operator, ExportHelper):
 			# Normal-recalc tables or per-row shape normals. RE9 keep-normals: no
 			# vanilla mesh uses it yet, not tested in game.
 			exportBlendShapes = shapeKeyExportSelection != "NO"
-			blendShapeExportMode = -1 if shapeKeyExportSelection == "KEEPNORMALS" else 1
+			blendShapeExportMode = -1 if shapeKeyExportSelection in ("KEEPNORMALS", "KEEPNORMALS_SURFACE") else 1
 		elif meshVersion == 221108797:
 			# RE4-specific switches below select its layout; generic modes only enable shapes.
 			exportBlendShapes = shapeKeyExportSelection != "NO"
@@ -1280,6 +1305,7 @@ class ExportREMesh(Operator, ExportHelper):
 			"exportAllLODs": self.exportAllLODs,
 			"exportBlendShapes": exportBlendShapes,
 			"blendShapeExportMode": blendShapeExportMode,
+			"shapeKeyNormalTurn": "SURFACE" if shapeKeyExportSelection == "KEEPNORMALS_SURFACE" else "BLENDER",
 			"rotate90": self.rotate90,
 			"useBlenderMaterialName": self.useBlenderMaterialName,
 			"preserveBoneMatrices": self.preserveBoneMatrices,
@@ -1793,7 +1819,9 @@ classes = [
 	WM_OT_REBatchExporter,
 	WM_OT_SolveRepeatedUVs,
 	WM_OT_QuickBatchExport,
-	
+	WM_OT_ToggleStaticNormals,
+	WM_OT_SetStaticNormals,
+
 	#mdf
 	ImportREMDF,
 	ExportREMDF,
@@ -2035,6 +2063,9 @@ def register():
 	
 	bpy.types.TOPBAR_MT_file_import.append(re_mesh_editor_import)
 	bpy.types.TOPBAR_MT_file_export.append(re_mesh_editor_export)
+	# Static Normals row under Blender's Shape Keys panel
+	bpy.types.DATA_PT_shape_keys.append(draw_static_normals)
+	register_static_normals()
 
 	#Blender 4.1 and higher drag and drop operators
 	if bpy.app.version >= (4, 1, 0):
@@ -2065,7 +2096,9 @@ def unregister():
 	
 	bpy.types.TOPBAR_MT_file_import.remove(re_mesh_editor_import)
 	bpy.types.TOPBAR_MT_file_export.remove(re_mesh_editor_export)
-	
+	bpy.types.DATA_PT_shape_keys.remove(draw_static_normals)
+	unregister_static_normals()
+
 	if bpy.app.version >= (4, 1, 0):
 		bpy.utils.unregister_class(MESH_FH_drag_import)
 		bpy.utils.unregister_class(MDF_FH_drag_import)

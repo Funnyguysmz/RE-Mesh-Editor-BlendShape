@@ -1,0 +1,57 @@
+{
+  "status": "PASS",
+  "addon_version": [
+    0,
+    70,
+    6
+  ],
+  "blender_version": "4.3.2",
+  "export_matrix": {
+    "no_taps_recalc": {
+      "channels": 85,
+      "normal_recalc_offset": 81408,
+      "vertices": 13461,
+      "bones": 389,
+      "authored_normal_rows_verified": 0,
+      "sha256": "4af4db7124165711121919a0b57f56ad72bb02f3650c6904839e525a39b4a9f4"
+    },
+    "mouth9_recalc": {
+      "channels": 94,
+      "normal_recalc_offset": 81408,
+      "vertices": 13461,
+      "bones": 389,
+      "authored_normal_rows_verified": 0,
+      "sha256": "e4fca79654a4967c1f27867a01f55dbadeb0639c9de39f63bdee32143f5b367d"
+    },
+    "no_taps_toon": {
+      "channels": 85,
+      "normal_recalc_offset": 0,
+      "vertices": 13461,
+      "bones": 389,
+      "authored_normal_rows_verified": 1144185,
+      "sha256": "de4f6d1367c8ca7dfa888b0105f62a44ccc093168f65a20ca1d98978d34aba36"
+    },
+    "mouth9_toon": {
+      "channels": 94,
+      "normal_recalc_offset": 0,
+      "vertices": 13461,
+      "bones": 389,
+      "authored_normal_rows_verified": 1265334,
+      "sha256": "bc86bcf574afb2dc508e4189a6a29df7e7ae6f803c693c50dbd866b3b7a73df2"
+    }
+  },
+  "default_export_byte_identical_upstream": true,
+  "geometry_identical_all_four_modes": true,
+  "batch_flags_persisted_and_exported": true,
+  "no_shape_mode_ignores_switches": true,
+  "new_format_reimport_and_reexport": true,
+  "native_no_recalc_sample_finite_channels": [
+    "face_BlendShape.miken"
+  ],
+  "native_sample_lods_verified": 4,
+  "native_sample_moving_rows_crosschecked": 13697,
+  "runtime_profile_hashes_matched": 94,
+  "supplied_dlls_executed": false,
+  "game_validation": "Previous standalone 85-key normal experiment accepted by user; integrated 94-key export pending game confirmation.",
+  "scope": "Historical private-asset verification; assets and original scripts not uploaded"
+}
